@@ -1,0 +1,189 @@
+------------
+
+MATCH (t1:Tool)<-[:EXECUTED]-(j1:Job)-[:PRECEDES]->(j2:Job)-[:EXECUTED]->(t2:Tool)
+WHERE t1 <> t2
+MERGE (t1)-[r:TOOL_CO_OCCURRENCE]->(t2)
+ON CREATE SET r.weight = 1
+ON MATCH SET r.weight = r.weight + 1
+
+
+-------------------
+
+MATCH (t1:Tool)<-[:EXECUTED]-(j1:Job)-[:PRECEDES]->(j2:Job)-[:EXECUTED]->(t2:Tool)
+WHERE t1 <> t2
+MERGE (t1)-[r:TOOL_CO_OCCURRENCE]->(t2)
+ON CREATE SET r.weight = 1
+ON MATCH SET r.weight = r.weight + 1
+
+
+-------------------------------
+
+
+MATCH (t:Tool)
+RETURN t.toolId AS ToolName
+LIMIT 10;
+
+
+```````````````````````````````````
+
+// What should a user run after using 'FastQC'?
+
+MATCH (startTool:Tool {id: 'FastQC'})-[r:TOOL_CO_OCCURRENCE]->(recommendedTool:Tool)
+RETURN recommendedTool.id AS recommendation, r.weight AS score
+ORDER BY score DESC
+LIMIT 5
+
+
+````````````````````````````````````````
+
+MATCH p=(u:User)-[:BELONGS_TO]-(h:History)-[:IN_SESSION]-(j:Job)-[:EXECUTED]->(t:Tool)
+WHERE u.userId = 1 AND h.historyId = 101
+RETURN p;
+
+`````````````````````````````````````````
+
+MATCH p=(:User)-[:BELONGS_TO]->(:Session)-[:IN_SESSION]->(:Job)-[:EXECUTED]->(:Tool)
+RETURN p
+LIMIT 1;
+
+
+`````````````````````````````````````````````````
+
+MATCH (t1:Tool)<-[:EXECUTED]-(j1:Job)-[:PRECEDES]->(j2:Job)-[:EXECUTED]->(t2:Tool)
+WHERE t1 <> t2
+MERGE (t1)-[r:TOOL_CO_OCCURRENCE]->(t2)
+ON CREATE SET r.weight = 1
+ON MATCH SET r.weight = r.weight + 1
+
+```````````````````````````````````````````
+
+MATCH (t1:Tool)<-[:EXECUTED]-(j1:Job)-[:PRECEDES]->(j2:Job)-[:EXECUTED]->(t2:Tool)
+WHERE t1 <> t2
+MERGE (t1)-[r:TOOL_CO_OCCURRENCE]->(t2)
+ON CREATE SET r.weight = 1
+ON MATCH SET r.weight = r.weight + 1
+
+
+``````````````````````````````````````````
+
+MATCH (startTool:Tool {id: 'FastQC'})-[r:TOOL_CO_OCCURRENCE]->(recommendedTool:Tool)
+RETURN recommendedTool.id AS recommendation, r.weight AS score
+ORDER BY score DESC
+LIMIT 5
+
+
+`````````````````````````````````````````````
+
+// HSP - P0: Calculate Overall Tool Popularity
+MATCH (job:Job)
+WITH count(job) AS total_job_executions
+MATCH (tool:Tool)<--(job:Job)
+WITH total_job_executions, tool, count(job) AS tool_job_count
+RETURN tool.id AS toolId,
+       toFloat(tool_job_count) / total_job_executions AS p0_score
+ORDER BY p0_score DESC
+LIMIT 5;
+
+
+
+
+
+```````````````````````````````````````````````
+
+// HSP - P1: Recommend next tool based on the last tool used
+WITH 'FastQC' AS lastToolId
+// 1. Find the last tool and count all its outgoing sequences (denominator)
+MATCH (t1:Tool {id: lastToolId})<--(j1:Job)-[:PRECEDES]->()
+WITH t1, count(j1) AS t1_totalCount
+// 2. Find and count the specific tools that followed it (numerator)
+MATCH (t1)<--(j1:Job)-[:PRECEDES]->(j2:Job)-->(t2:Tool)
+WITH t1_totalCount, t2, count(j2) AS pairCount
+// 3. Calculate the P1 score
+RETURN t2.id AS recommendedTool,
+       toFloat(pairCount) / t1_totalCount AS p1_score
+ORDER BY p1_score DESC
+LIMIT 5;
+
+
+``````````````````````````````````````````````````````
+
+// HSP - P2 (Corrected): Recommend next tool based on the last TWO tools used
+WITH 'Trimmomatic' AS secondToLastToolId, 'BWA-MEM' AS lastToolId
+
+// 1. Find all instances of the specific sequence (t1 -> t2)
+MATCH (t1:Tool {id: secondToLastToolId})<--(:Job)-[:PRECEDES]->(j2:Job)-->(t2:Tool {id: lastToolId})
+
+// 2. Calculate the total occurrences of this sequence for the denominator
+WITH count(j2) AS pair_totalCount, secondToLastToolId, lastToolId
+
+// 3. Re-match the sequence and find the *next* tool (t3)
+MATCH (t1:Tool {id: secondToLastToolId})<--(:Job)-[:PRECEDES]->(j2:Job)-->(t2:Tool {id: lastToolId})
+MATCH (j2)-[:PRECEDES]->(:Job)-->(t3:Tool)
+
+// 4. Count the occurrences of each t3 for the numerator
+WITH pair_totalCount, t3, count(t3) AS tripletCount
+
+// 5. Calculate the P2 score
+RETURN t3.id AS recommendedTool,
+       toFloat(tripletCount) / pair_totalCount AS p2_score
+ORDER BY p2_score DESC
+LIMIT 5;
+
+
+
+
+
+
+`````````````````````````````````````````````````````````
+
+// HSP - P2 (Corrected): Using a sequence we know exists in the database
+WITH 'Trimmomatic' AS secondToLastToolId, 'featureCounts' AS lastToolId
+
+// 1. Find all instances of the specific sequence (t1 -> t2)
+MATCH (t1:Tool {id: secondToLastToolId})<--(:Job)-[:PRECEDES]->(j2:Job)-->(t2:Tool {id: lastToolId})
+
+// 2. Calculate the total occurrences of this sequence for the denominator
+WITH count(j2) AS pair_totalCount, secondToLastToolId, lastToolId
+
+// 3. Re-match the sequence and find the *next* tool (t3)
+MATCH (t1:Tool {id: secondToLastToolId})<--(:Job)-[:PRECEDES]->(j2:Job)-->(t2:Tool {id: lastToolId})
+MATCH (j2)-[:PRECEDES]->(:Job)-->(t3:Tool)
+
+// 4. Count the occurrences of each t3 for the numerator
+WITH pair_totalCount, t3, count(t3) AS tripletCount
+
+// 5. Calculate the P2 score
+RETURN t3.id AS recommendedTool,
+       toFloat(tripletCount) / pair_totalCount AS p2_score
+ORDER BY p2_score DESC
+LIMIT 5;
+
+
+``````````````````````````````````````````````````````````
+
+// RIC - Calculate Confidence Score γ(oi | x) for a given last tool (Corrected)
+WITH 'FastQC' AS lastToolId
+
+// 1. Find the last tool node
+MATCH (lastTool:Tool {id: lastToolId})
+
+// 2. Find all sessions that contain this tool
+MATCH (lastTool)<-[:EXECUTED]-(:Job)-[:IN_SESSION]->(s:Session)
+
+// 3. Count the total number of such sessions (denominator)
+WITH COLLECT(DISTINCT s) AS sessions_with_last_tool, lastTool
+WITH size(sessions_with_last_tool) AS last_tool_session_count, sessions_with_last_tool, lastTool
+
+// 4. Unwind these sessions and find all other tools that appear in them
+UNWIND sessions_with_last_tool AS s
+MATCH (s)<-[:IN_SESSION]-(:Job)-[:EXECUTED]->(otherTool:Tool)
+WHERE otherTool <> lastTool
+
+// 5. Count the occurrences of each "other tool" (numerator)
+WITH last_tool_session_count, otherTool, count(DISTINCT s) AS joint_session_count
+
+// 6. Calculate the final confidence score
+RETURN otherTool.id AS recommendedTool,
+       toFloat(joint_session_count) / last_tool_session_count AS confidence_score
+ORDER BY confidence_score DESC
+LIMIT 10;
